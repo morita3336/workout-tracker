@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>筋トレトラッカー</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f13; --surface: #1a1a22; --surface2: #22222e;
+    --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+    --text: #f0f0f4; --text2: #9090a8; --text3: #5a5a72;
+    --accent: #7c6af7; --accent-light: rgba(124,106,247,0.15);
+    --done: #34c97a; --done-light: rgba(52,201,122,0.12);
+    --red: #f06060; --red-light: rgba(240,96,96,0.12);
+    --radius: 14px; --radius-sm: 8px;
+  }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system,'Hiragino Sans','Yu Gothic UI',sans-serif; min-height:100vh; padding-bottom:100px; }
+
+  /* Header */
+  .header { position:sticky; top:0; z-index:50; background:rgba(15,15,19,0.92); backdrop-filter:blur(16px); padding:16px 20px 12px; border-bottom:0.5px solid var(--border); }
+  .header-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .app-title { font-size:18px; font-weight:600; letter-spacing:-0.3px; }
+  .today-badge { font-size:12px; color:var(--text2); background:var(--surface); border:0.5px solid var(--border2); padding:4px 10px; border-radius:20px; }
+  .tab-nav { display:flex; gap:4px; background:var(--surface); border-radius:10px; padding:3px; }
+  .tab-btn { flex:1; padding:7px; border:none; border-radius:7px; font-size:12px; font-weight:500; cursor:pointer; background:transparent; color:var(--text2); transition:all 0.15s; }
+  .tab-btn.active { background:var(--accent); color:#fff; }
+
+  /* Views */
+  .view { display:none; padding:16px 16px 0; }
+  .view.active { display:block; }
+
+  /* Today */
+  .day-header { background:var(--surface); border:0.5px solid var(--border2); border-radius:var(--radius); padding:16px; margin-bottom:14px; }
+  .day-header-row { display:flex; align-items:center; justify-content:space-between; }
+  .day-name { font-size:20px; font-weight:700; }
+  .day-sub { font-size:13px; color:var(--text2); margin-top:2px; }
+  .progress-wrap { margin-top:12px; }
+  .progress-bar-bg { height:6px; background:var(--surface2); border-radius:3px; overflow:hidden; }
+  .progress-bar-fill { height:100%; border-radius:3px; background:var(--accent); transition:width 0.4s ease; }
+  .progress-bar-fill.done { background:var(--done); }
+  .progress-label { font-size:12px; color:var(--text2); margin-top:6px; display:flex; justify-content:space-between; }
+  .complete-badge { display:none; align-items:center; gap:6px; background:var(--done-light); border:0.5px solid rgba(52,201,122,0.3); border-radius:20px; padding:4px 12px; font-size:13px; color:var(--done); font-weight:500; }
+  .complete-badge.visible { display:flex; }
+  .ex-card { background:var(--surface); border:0.5px solid var(--border); border-radius:var(--radius); margin-bottom:8px; overflow:hidden; transition:border-color 0.2s; }
+  .ex-card.checked { border-color:rgba(52,201,122,0.4); background:rgba(52,201,122,0.04); }
+  .ex-card-inner { display:flex; align-items:center; gap:12px; padding:14px; cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent; }
+  .check-circle { width:26px; height:26px; flex-shrink:0; border-radius:50%; border:2px solid var(--border2); background:transparent; display:flex; align-items:center; justify-content:center; transition:all 0.2s; font-size:14px; }
+  .ex-card.checked .check-circle { background:var(--done); border-color:var(--done); }
+  .ex-body { flex:1; min-width:0; }
+  .ex-name { font-size:15px; font-weight:500; line-height:1.3; }
+  .ex-card.checked .ex-name { color:var(--text2); text-decoration:line-through; text-decoration-color:var(--text3); }
+  .ex-sets { font-size:12px; color:var(--text2); margin-top:3px; }
+  .ex-time-tag { font-size:11px; color:var(--text3); background:var(--surface2); border:0.5px solid var(--border); padding:3px 8px; border-radius:6px; flex-shrink:0; }
+  .reset-btn { display:block; width:100%; margin-top:16px; padding:12px; border:0.5px solid var(--border2); border-radius:var(--radius); background:transparent; color:var(--text2); font-size:14px; cursor:pointer; transition:background 0.15s; }
+  .reset-btn:active { background:var(--surface); }
+
+  /* Week */
+  .week-list { display:flex; flex-direction:column; gap:8px; }
+  .week-row { background:var(--surface); border:0.5px solid var(--border); border-radius:var(--radius); padding:14px 16px; display:flex; align-items:center; gap:12px; }
+  .week-row.is-today { border-color:var(--accent); }
+  .week-dot { width:36px; height:36px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .week-dot.done-full { background:var(--done-light); }
+  .week-dot.done-partial { background:var(--accent-light); }
+  .week-dot.today-dot { background:var(--accent-light); border:1.5px solid var(--accent); }
+  .week-dot.empty { background:var(--surface2); }
+  .week-info { flex:1; }
+  .week-day-name { font-size:14px; font-weight:500; }
+  .week-day-title { font-size:12px; color:var(--text2); margin-top:2px; }
+  .week-progress { font-size:12px; color:var(--text3); }
+  .today-tag { font-size:11px; color:var(--accent); background:var(--accent-light); padding:2px 8px; border-radius:6px; }
+
+  /* Calendar */
+  .cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .cal-month { font-size:17px; font-weight:600; }
+  .cal-nav-btn { width:34px; height:34px; border-radius:50%; border:0.5px solid var(--border2); background:var(--surface); color:var(--text); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .cal-weekday { text-align:center; font-size:11px; color:var(--text3); padding:4px 0 8px; }
+  .cal-day { aspect-ratio:1; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:13px; background:var(--surface); }
+  .cal-day.empty { background:transparent; }
+  .cal-day.today { border:1.5px solid var(--accent); color:var(--accent); font-weight:600; }
+  .cal-day.full-done { background:var(--done-light); }
+  .cal-day.partial-done { background:var(--accent-light); }
+  .cal-day-circle { font-size:13px; line-height:1; margin-top:1px; }
+  .cal-day-num { font-size:12px; }
+  .cal-legend { display:flex; gap:14px; margin-top:14px; justify-content:center; }
+  .legend-item { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--text2); }
+  .legend-dot { width:10px; height:10px; border-radius:3px; }
+
+  /* ── Settings ── */
+  .settings-section { margin-bottom:20px; }
+  .settings-label { font-size:12px; color:var(--text3); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px; }
+  .day-selector { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .day-pill { padding:6px 12px; border-radius:20px; border:0.5px solid var(--border2); background:transparent; color:var(--text2); font-size:13px; cursor:pointer; transition:all 0.15s; }
+  .day-pill.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .edit-day-card { background:var(--surface); border:0.5px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:10px; }
+  .edit-day-title-row { display:flex; gap:8px; margin-bottom:10px; }
+  .edit-input { background:var(--surface2); border:0.5px solid var(--border2); border-radius:var(--radius-sm); color:var(--text); font-size:14px; padding:8px 10px; width:100%; outline:none; font-family:inherit; }
+  .edit-input:focus { border-color:var(--accent); }
+  .edit-input.short { width:120px; flex-shrink:0; }
+
+  .ex-edit-row { display:flex; flex-direction:column; gap:6px; background:var(--surface2); border-radius:var(--radius-sm); padding:10px; margin-bottom:8px; position:relative; }
+  .ex-edit-fields { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .ex-edit-detail { width:100%; }
+  .ex-del-btn { position:absolute; top:8px; right:8px; width:24px; height:24px; border-radius:50%; border:none; background:var(--red-light); color:var(--red); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; }
+  .add-ex-btn { display:flex; align-items:center; justify-content:center; gap:6px; width:100%; padding:10px; border:0.5px dashed var(--border2); border-radius:var(--radius-sm); background:transparent; color:var(--text2); font-size:13px; cursor:pointer; transition:background 0.15s; margin-bottom:10px; }
+  .add-ex-btn:active { background:var(--surface); }
+  .save-btn { display:block; width:100%; padding:13px; border-radius:var(--radius); border:none; background:var(--accent); color:#fff; font-size:15px; font-weight:600; cursor:pointer; transition:opacity 0.15s; }
+  .save-btn:active { opacity:0.8; }
+  .save-toast { display:none; text-align:center; font-size:13px; color:var(--done); margin-top:10px; }
+  .save-toast.show { display:block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <span class="app-title">💪 筋トレトラッカー</span>
+    <span class="today-badge" id="todayBadge">—</span>
+  </div>
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('today',this)">今日</button>
+    <button class="tab-btn" onclick="switchTab('week',this)">今週</button>
+    <button class="tab-btn" onclick="switchTab('calendar',this)">カレンダー</button>
+    <button class="tab-btn" onclick="switchTab('settings',this)">設定</button>
+  </div>
+</div>
+
+<!-- TODAY -->
+<div class="view active" id="view-today">
+  <div class="day-header">
+    <div class="day-header-row">
+      <div>
+        <div class="day-name" id="todayDayName">—</div>
+        <div class="day-sub" id="todayDaySub">—</div>
+      </div>
+      <div class="complete-badge" id="completeBadge">✅ 完了！</div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
+      <div class="progress-label">
+        <span id="progressText">0 / 0 完了</span>
+        <span id="progressPct">0%</span>
+      </div>
+    </div>
+  </div>
+  <div id="exerciseList"></div>
+  <button class="reset-btn" onclick="resetToday()">🔄 今日のチェックをリセット</button>
+</div>
+
+<!-- WEEK -->
+<div class="view" id="view-week">
+  <div class="week-list" id="weekList"></div>
+</div>
+
+<!-- CALENDAR -->
+<div class="view" id="view-calendar">
+  <div class="cal-header">
+    <button class="cal-nav-btn" onclick="changeMonth(-1)">‹</button>
+    <span class="cal-month" id="calMonthLabel">—</span>
+    <button class="cal-nav-btn" onclick="changeMonth(1)">›</button>
+  </div>
+  <div class="cal-grid" id="calGrid"></div>
+  <div class="cal-legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--done-light);border:1px solid rgba(52,201,122,0.4)"></div>全完了 ⭕</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent-light);border:1px solid rgba(124,106,247,0.4)"></div>一部完了</div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="view" id="view-settings">
+  <div class="settings-section">
+    <div class="settings-label">編集する曜日</div>
+    <div class="day-selector" id="daySelectorBtns"></div>
+  </div>
+  <div id="editDayArea"></div>
+  <button class="save-btn" onclick="saveSettings()">💾　変更を保存する</button>
+  <div class="save-toast" id="saveToast">✅ 保存しました！</div>
+</div>
+
+<script>
+const DEFAULT_DAYS = [
+  { label:"月曜日", title:"下半身", focus:"脚・臀部", exercises:[
+    { name:"スクワット", sets:"15回 × 3セット", time:"4分", detail:"肩幅に足を開き、ひざがつま先を越えないよう注意" },
+    { name:"ランジ", sets:"左右10回 × 2セット", time:"3分", detail:"前に踏み出して戻る動作を交互に。上体は垂直を保つ" },
+    { name:"グルートブリッジ", sets:"15回 × 2セット", time:"3分", detail:"仰向けで膝を立て、お尻を持ち上げてキープ" },
+  ]},
+  { label:"火曜日", title:"背中・二頭筋", focus:"引く系・上半身", exercises:[
+    { name:"ダンベルベントオーバーロウ", sets:"12回 × 3セット", time:"4分", detail:"上体を45度に傾け、肘を引きながらダンベルを引き上げる" },
+    { name:"ダンベルカール", sets:"12回 × 2セット", time:"3分", detail:"肘を固定してゆっくり持ち上げ、ゆっくり下ろす。反動を使わない" },
+    { name:"シュラッグ", sets:"15回 × 2セット", time:"3分", detail:"ダンベルを持ち、肩を真上にすくめてゆっくり下ろす" },
+  ]},
+  { label:"水曜日", title:"体幹", focus:"腹筋・体側・腰回り", exercises:[
+    { name:"プランク", sets:"30秒 × 3セット", time:"4分", detail:"肘を床につき体をまっすぐ保つ。呼吸を止めず、腰が落ちないように" },
+    { name:"サイドプランク", sets:"左右20秒 × 2セット", time:"3分", detail:"片肘で体を支えて横向きをキープ" },
+    { name:"バードドッグ", sets:"左右10回 × 2セット", time:"3分", detail:"四つ這いで対角の手足を同時に伸ばし3秒キープ" },
+  ]},
+  { label:"木曜日", title:"下半身②", focus:"脚・ふくらはぎ", exercises:[
+    { name:"ゴブレットスクワット", sets:"12回 × 3セット", time:"4分", detail:"ダンベルを胸の前で両手で持ち、深くしゃがむ" },
+    { name:"カーフレイズ", sets:"20回 × 3セット", time:"3分", detail:"段差の縁に立ちかかとを上下。ダンベルを持つと強度増" },
+    { name:"ルーマニアンデッドリフト", sets:"12回 × 2セット", time:"3分", detail:"ダンベルを持ち股関節を起点に前傾。膝を少し曲げ、背中を丸めない" },
+  ]},
+  { label:"金曜日", title:"肩・三頭筋", focus:"押す系（大胸筋除外）", exercises:[
+    { name:"ダンベルオーバーヘッドプレス", sets:"10回 × 3セット", time:"4分", detail:"椅子に座り、ダンベルを耳横から真上に押し上げる" },
+    { name:"サイドレイズ", sets:"12回 × 2セット", time:"3分", detail:"腕を横に持ち上げ肩の高さで止める。反動を使わずゆっくり" },
+    { name:"トライセップスエクステンション", sets:"12回 × 2セット", time:"3分", detail:"頭の後ろでダンベルを両手で持ち、肘だけを使って上下する" },
+  ]},
+  { label:"土曜日", title:"体幹②＋全身", focus:"腹筋・バランス強化", exercises:[
+    { name:"デッドバグ", sets:"左右8回 × 2セット", time:"4分", detail:"仰向けで腕と足を上げ、対角の手足をゆっくり床に近づけ戻す" },
+    { name:"ダンベルスイング", sets:"15回 × 2セット", time:"3分", detail:"足を肩幅より広く、ダンベルを股間から前方に振り上げる。股関節を使う" },
+    { name:"ウォールシット", sets:"30秒 × 3セット", time:"3分", detail:"壁に背中をつけ膝90度でキープ" },
+  ]},
+  { label:"日曜日", title:"軽め＋ストレッチ", focus:"回復促進・柔軟性", exercises:[
+    { name:"スロースクワット", sets:"10回 × 2セット", time:"4分", detail:"4秒かけて下り、4秒かけて上がる" },
+    { name:"股関節ストレッチ", sets:"左右30秒 × 2回", time:"3分", detail:"仰向けで片膝を胸に引き寄せて30秒キープ" },
+    { name:"ハムストリング＋肩ストレッチ", sets:"各30秒 × 2回", time:"3分", detail:"床に座り前屈30秒、次に腕を後ろで組み肩甲骨を寄せて30秒" },
+  ]},
+];
+
+// Load menu from localStorage or use default
+function loadMenuData() {
+  try {
+    const saved = localStorage.getItem('workout_menu');
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return JSON.parse(JSON.stringify(DEFAULT_DAYS));
+}
+function saveMenuData(data) {
+  localStorage.setItem('workout_menu', JSON.stringify(data));
+}
+
+let DAYS_DATA = loadMenuData();
+
+function storageKey(ds) { return 'workout_' + ds; }
+function loadChecks(ds) { try { return JSON.parse(localStorage.getItem(storageKey(ds)) || '[]'); } catch(e) { return []; } }
+function saveChecks(ds, arr) { localStorage.setItem(storageKey(ds), JSON.stringify(arr)); }
+function dateStr(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function dowToMenuIdx(dow) { return dow === 0 ? 6 : dow - 1; }
+
+const today = new Date();
+const todayStr = dateStr(today);
+const todayDow = today.getDay();
+const menuIdx = dowToMenuIdx(todayDow);
+let calYear = today.getFullYear();
+let calMonth = today.getMonth();
+
+// ── TODAY ──
+function renderToday() {
+  const d = DAYS_DATA[menuIdx];
+  const checks = loadChecks(todayStr);
+  const total = d.exercises.length;
+  const done = checks.filter(Boolean).length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  document.getElementById('todayDayName').textContent = d.label + '　' + d.title;
+  document.getElementById('todayDaySub').textContent = d.focus;
+  document.getElementById('todayBadge').textContent = (today.getMonth()+1) + '/' + today.getDate() + '（' + ['日','月','火','水','木','金','土'][todayDow] + '）';
+  const fill = document.getElementById('progressFill');
+  fill.style.width = pct + '%';
+  fill.className = 'progress-bar-fill' + (pct===100?' done':'');
+  document.getElementById('progressText').textContent = done + ' / ' + total + ' 完了';
+  document.getElementById('progressPct').textContent = pct + '%';
+  document.getElementById('completeBadge').className = 'complete-badge' + (done===total?' visible':'');
+  document.getElementById('exerciseList').innerHTML = d.exercises.map((ex,i) => {
+    const checked = checks[i];
+    return `<div class="ex-card ${checked?'checked':''}" >
+      <div class="ex-card-inner" onclick="toggleCheck(${i})">
+        <div class="check-circle">${checked?'✓':''}</div>
+        <div class="ex-body">
+          <div class="ex-name">${ex.name}</div>
+          <div class="ex-sets">${ex.sets}</div>
+        </div>
+        <div class="ex-time-tag">${ex.time}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCheck(i) {
+  const d = DAYS_DATA[menuIdx];
+  let checks = loadChecks(todayStr);
+  while (checks.length < d.exercises.length) checks.push(false);
+  checks[i] = !checks[i];
+  saveChecks(todayStr, checks);
+  renderToday(); renderWeek(); renderCalendar();
+}
+
+function resetToday() {
+  if (confirm('今日のチェックをすべてリセットしますか？')) {
+    saveChecks(todayStr, []);
+    renderToday(); renderWeek(); renderCalendar();
+  }
+}
+
+// ── WEEK ──
+function renderWeek() {
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - (todayDow===0?6:todayDow-1));
+  document.getElementById('weekList').innerHTML = DAYS_DATA.map((d,idx) => {
+    const dt = new Date(weekStart); dt.setDate(weekStart.getDate()+idx);
+    const ds = dateStr(dt);
+    const checks = loadChecks(ds);
+    const total = d.exercises.length;
+    const done = checks.filter(Boolean).length;
+    const isToday = ds===todayStr;
+    const isFull = done===total && total>0;
+    const isPartial = done>0 && !isFull;
+    let dotClass = 'week-dot', dotContent = '';
+    if (isToday) { dotClass+=' today-dot'; dotContent='▶'; }
+    else if (isFull) { dotClass+=' done-full'; dotContent='⭕'; }
+    else if (isPartial) { dotClass+=' done-partial'; dotContent='◑'; }
+    else dotClass+=' empty';
+    return `<div class="week-row ${isToday?'is-today':''}">
+      <div class="${dotClass}">${dotContent}</div>
+      <div class="week-info">
+        <div class="week-day-name">${d.label}　${d.title}</div>
+        <div class="week-day-title">${d.focus}</div>
+        <div class="week-progress">${done>0?done+' / '+total+' 完了':'未実施'}</div>
+      </div>
+      ${isToday?'<span class="today-tag">今日</span>':''}
+    </div>`;
+  }).join('');
+}
+
+// ── CALENDAR ──
+function renderCalendar() {
+  document.getElementById('calMonthLabel').textContent = calYear + '年 ' + (calMonth+1) + '月';
+  const firstDay = new Date(calYear,calMonth,1).getDay();
+  const daysInMonth = new Date(calYear,calMonth+1,0).getDate();
+  let html = ['日','月','火','水','木','金','土'].map(w=>`<div class="cal-weekday">${w}</div>`).join('');
+  for (let i=0;i<firstDay;i++) html+='<div class="cal-day empty"></div>';
+  for (let d=1;d<=daysInMonth;d++) {
+    const dt = new Date(calYear,calMonth,d);
+    const ds = dateStr(dt);
+    const midx = dowToMenuIdx(dt.getDay());
+    const checks = loadChecks(ds);
+    const total = DAYS_DATA[midx].exercises.length;
+    const done = checks.filter(Boolean).length;
+    const isFull = done===total && total>0;
+    const isPartial = done>0 && !isFull;
+    const isTd = ds===todayStr;
+    let cls='cal-day';
+    if (isFull) cls+=' full-done';
+    else if (isPartial) cls+=' partial-done';
+    if (isTd) cls+=' today';
+    html+=`<div class="${cls}"><div class="cal-day-num">${d}</div>${isFull?'<div class="cal-day-circle">⭕</div>':''}</div>`;
+  }
+  document.getElementById('calGrid').innerHTML = html;
+}
+function changeMonth(dir) {
+  calMonth+=dir;
+  if (calMonth<0){calMonth=11;calYear--;}
+  if (calMonth>11){calMonth=0;calYear++;}
+  renderCalendar();
+}
+
+// ── SETTINGS ──
+let editDayIdx = 0;
+
+function renderDaySelector() {
+  document.getElementById('daySelectorBtns').innerHTML = DAYS_DATA.map((d,i)=>`
+    <button class="day-pill ${i===editDayIdx?'active':''}" onclick="selectEditDay(${i})">${d.label.replace('曜日','')}</button>
+  `).join('');
+}
+
+function selectEditDay(i) {
+  editDayIdx = i;
+  renderDaySelector();
+  renderEditArea();
+}
+
+function renderEditArea() {
+  const d = DAYS_DATA[editDayIdx];
+  let exHtml = d.exercises.map((ex,i)=>`
+    <div class="ex-edit-row" id="exrow-${i}">
+      <button class="ex-del-btn" onclick="deleteEx(${i})">×</button>
+      <div class="ex-edit-fields">
+        <input class="edit-input" placeholder="種目名" value="${esc(ex.name)}" oninput="updateEx(${i},'name',this.value)">
+        <input class="edit-input" placeholder="セット数" value="${esc(ex.sets)}" oninput="updateEx(${i},'sets',this.value)">
+        <input class="edit-input" placeholder="時間 例: 4分" value="${esc(ex.time)}" oninput="updateEx(${i},'time',this.value)">
+      </div>
+      <input class="edit-input ex-edit-detail" placeholder="説明（任意）" value="${esc(ex.detail||'')}" oninput="updateEx(${i},'detail',this.value)">
+    </div>
+  `).join('');
+
+  document.getElementById('editDayArea').innerHTML = `
+    <div class="edit-day-card">
+      <div class="edit-day-title-row">
+        <input class="edit-input" placeholder="テーマ 例: 下半身" value="${esc(d.title)}" oninput="updateDayField('title',this.value)">
+        <input class="edit-input" placeholder="フォーカス 例: 脚・臀部" value="${esc(d.focus)}" oninput="updateDayField('focus',this.value)">
+      </div>
+      ${exHtml}
+      <button class="add-ex-btn" onclick="addEx()">＋ 種目を追加する</button>
+    </div>
+  `;
+}
+
+function esc(s){ return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function updateDayField(field, val) { DAYS_DATA[editDayIdx][field] = val; }
+function updateEx(i, field, val) { DAYS_DATA[editDayIdx].exercises[i][field] = val; }
+function deleteEx(i) {
+  if (DAYS_DATA[editDayIdx].exercises.length <= 1) { alert('種目は最低1つ必要です'); return; }
+  DAYS_DATA[editDayIdx].exercises.splice(i, 1);
+  renderEditArea();
+}
+function addEx() {
+  DAYS_DATA[editDayIdx].exercises.push({ name:'', sets:'', time:'', detail:'' });
+  renderEditArea();
+  setTimeout(()=>{ document.getElementById('editDayArea').scrollIntoView({behavior:'smooth',block:'end'}); },50);
+}
+
+function saveSettings() {
+  saveMenuData(DAYS_DATA);
+  renderToday(); renderWeek(); renderCalendar();
+  const toast = document.getElementById('saveToast');
+  toast.className = 'save-toast show';
+  setTimeout(()=>{ toast.className='save-toast'; }, 2000);
+}
+
+function renderSettings() {
+  renderDaySelector();
+  renderEditArea();
+}
+
+// ── TAB ──
+function switchTab(tab, btn) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+tab).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (tab==='settings') renderSettings();
+}
+
+// init
+renderToday(); renderWeek(); renderCalendar();
+</script>
+</body>
+</html>
